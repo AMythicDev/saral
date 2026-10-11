@@ -30,3 +30,6 @@ frontend/build/
 # OS
 .DS_Store
 Thumbs.db
+
+# Reminder DB
+backend/data/

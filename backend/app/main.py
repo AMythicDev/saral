@@ -11,7 +11,15 @@ from fastapi.responses import JSONResponse
 
 from app.pipeline import analyze_document, handle_followup, handle_voice_query, transcribe_audio
 from app.sarvam_client import is_api_configured
-from app.schemas import AnalysisResult, ErrorResponse, FollowupResult, TranscribeResult
+from app.db import add_reminder, get_reminders, dismiss_reminder, delete_reminder
+from app.schemas import (
+    AnalysisResult,
+    ErrorResponse,
+    FollowupResult,
+    Reminder,
+    ReminderListResponse,
+    TranscribeResult,
+)
 
 # ---------------------------------------------------------------------------
 # Logging
@@ -101,6 +109,30 @@ def _validate_upload(file: UploadFile, file_bytes: bytes) -> None:
         )
 
 
+def _maybe_auto_save_reminder(result: dict[str, Any]) -> None:
+    """If analysis is for a legitimate bill with a valid due date, auto-save to SQLite."""
+    try:
+        risk_obj = result.get("risk_assessment")
+        risk_level = risk_obj.get("level", "normal") if isinstance(risk_obj, dict) else "normal"
+        due_date = str(result.get("due_date", "")).strip()
+        if (
+            risk_level == "normal"
+            and due_date
+            and due_date.lower() not in ("n/a", "na", "none", "not mentioned", "null", "")
+        ):
+            add_reminder(
+                document_type=str(result.get("document_type") or "Bill"),
+                issuer=str(result.get("issuer") or "Unknown Issuer"),
+                amount_due=str(result.get("amount_due") or "N/A"),
+                due_date=due_date,
+                summary=str(result.get("summary") or ""),
+                risk_level=risk_level,
+            )
+            result["reminder_saved"] = True
+    except Exception as exc:
+        logger.warning("Could not auto-save reminder: %s", exc)
+
+
 # ---------------------------------------------------------------------------
 # Routes
 # ---------------------------------------------------------------------------
@@ -152,6 +184,7 @@ async def analyze(
             raw_text=text,
             target_language=target_language,
         )
+        _maybe_auto_save_reminder(result)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except RuntimeError as exc:
@@ -265,6 +298,7 @@ async def voice_query(
             context_json=context,
             target_language=target_language,
         )
+        _maybe_auto_save_reminder(result)
         return JSONResponse(content=result)
     except RuntimeError as exc:
         error_msg = str(exc)
@@ -275,3 +309,55 @@ async def voice_query(
         logger.exception("Unexpected error in /api/voice-query")
         raise HTTPException(status_code=500, detail="Internal server error") from exc
 
+# ---------------------------------------------------------------------------
+# Reminder routes
+# ---------------------------------------------------------------------------
+
+
+@app.get("/api/reminders", response_model=ReminderListResponse, summary="Get all active reminders")
+async def list_reminders(include_dismissed: bool = False) -> JSONResponse:
+    """Return all saved bill reminders."""
+    reminders = get_reminders(include_dismissed=include_dismissed)
+    return JSONResponse(content={"reminders": reminders, "count": len(reminders)})
+
+
+@app.post("/api/reminders", response_model=Reminder, summary="Save a bill as a reminder", status_code=201)
+async def create_reminder(
+    document_type: str = Form(...),
+    issuer: str = Form(...),
+    amount_due: str = Form(...),
+    due_date: str = Form(...),
+    summary: str = Form(...),
+    risk_level: str = Form("normal"),
+) -> JSONResponse:
+    """Save a legitimate bill analysis as a reminder with its due date."""
+    reminder_id = add_reminder(
+        document_type=document_type,
+        issuer=issuer,
+        amount_due=amount_due,
+        due_date=due_date,
+        summary=summary,
+        risk_level=risk_level,
+    )
+    # Fetch the created reminder to return it
+    reminders = get_reminders(include_dismissed=True)
+    created = next((r for r in reminders if r["id"] == reminder_id), None)
+    if not created:
+        raise HTTPException(status_code=500, detail="Failed to retrieve created reminder")
+    return JSONResponse(content=created, status_code=201)
+
+
+@app.patch("/api/reminders/{reminder_id}/dismiss", summary="Dismiss a reminder")
+async def dismiss_reminder_route(reminder_id: int) -> JSONResponse:
+    """Mark a reminder as dismissed (hidden from default view)."""
+    if dismiss_reminder(reminder_id):
+        return JSONResponse(content={"status": "dismissed", "id": reminder_id})
+    raise HTTPException(status_code=404, detail=f"Reminder {reminder_id} not found.")
+
+
+@app.delete("/api/reminders/{reminder_id}", summary="Delete a reminder")
+async def delete_reminder_route(reminder_id: int) -> JSONResponse:
+    """Permanently delete a reminder."""
+    if delete_reminder(reminder_id):
+        return JSONResponse(content={"status": "deleted", "id": reminder_id})
+    raise HTTPException(status_code=404, detail=f"Reminder {reminder_id} not found.")

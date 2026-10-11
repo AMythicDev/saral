@@ -6,29 +6,112 @@ import base64
 import io
 import json
 import logging
+import re
 import time
 from typing import Any
 
-from app.prompts import BILL_ANALYSIS_SCHEMA, FOLLOWUP_SYSTEM_PROMPT, SYSTEM_PROMPT
+from app.prompts import FOLLOWUP_SYSTEM_PROMPT, SYSTEM_PROMPT
 from app.sarvam_client import get_sarvam_client
 
 logger = logging.getLogger(__name__)
 
-# Valid speaker mapping per language according to sarvamai SDK
+# Valid speaker mapping per language according to bulbul:v4-flash model specs
 VOICE_MAP: dict[str, tuple[str, str]] = {
-    # target_lang: (language_code, speaker)
     "hi-IN": ("hi-IN", "shubh_hi_ads"),
-    "bn-IN": ("bn-IN", "bappa_bn_conversation"),
+    "bn-IN": ("bn-IN", "arnab_bn_conversation"),
     "ta-IN": ("ta-IN", "vijay_ta_narration"),
     "te-IN": ("te-IN", "kavitha_te_conversation"),
     "mr-IN": ("mr-IN", "mrunal_mr_narration"),
     "gu-IN": ("gu-IN", "pooja_gu_conversational"),
     "kn-IN": ("kn-IN", "chaitra_kn_conversation"),
-    "ml-IN": ("ml-IN", "anushka"),
     "pa-IN": ("pa-IN", "harpreet_pa_narration"),
-    "od-IN": ("od-IN", "anushka"),
+    "as-IN": ("as-IN", "kangkana_as_conversational"),
     "en-IN": ("en-IN", "shubh_enhi_ads"),
+    # Languages where bulbul:v4-flash uses high-quality fallback voice
+    "ml-IN": ("en-IN", "shubh_enhi_ads"),
+    "od-IN": ("en-IN", "shubh_enhi_ads"),
+    "ur-IN": ("hi-IN", "shubh_hi_ads"),
 }
+
+
+def _extract_content(choice: Any) -> str:
+    """Safely extract assistant message text from an LLM choice object."""
+    if not choice:
+        return ""
+    msg = getattr(choice, "message", None)
+    if not msg:
+        return ""
+    content = getattr(msg, "content", None)
+    if content:
+        return str(content).strip()
+    reasoning = getattr(msg, "reasoning_content", None)
+    if reasoning:
+        return str(reasoning).strip()
+    return ""
+
+
+def _parse_analysis_json(raw_text: str) -> dict[str, Any]:
+    """Parse JSON output from LLM, stripping markdown fences and providing resilient defaults."""
+    if not raw_text:
+        return {
+            "document_type": "Notice",
+            "issuer": "Unspecified Issuer",
+            "amount_due": "N/A",
+            "due_date": "N/A",
+            "summary": "Document received but detailed structure could not be parsed.",
+            "action_items": ["Verify the source directly with the issuing authority before taking action."],
+            "risk_assessment": {"level": "suspicious", "reason": "Message format could not be verified automatically."},
+        }
+
+    cleaned = raw_text.strip()
+    if cleaned.startswith("```"):
+        cleaned = re.sub(r"^```(?:json)?\s*", "", cleaned)
+        cleaned = re.sub(r"\s*```$", "", cleaned)
+
+    data: dict[str, Any] = {}
+    try:
+        data = json.loads(cleaned)
+    except json.JSONDecodeError:
+        # Search for first { to last }
+        match = re.search(r"(\{.*\})", cleaned, re.DOTALL)
+        if match:
+            try:
+                data = json.loads(match.group(1))
+            except json.JSONDecodeError:
+                data = {}
+
+    # Extract and normalize risk assessment
+    risk = data.get("risk_assessment")
+    if not isinstance(risk, dict):
+        raw_level = str(data.get("scam_risk", data.get("risk_level", "normal"))).lower()
+        if "scam" in raw_level:
+            level = "likely_scam"
+        elif "suspicious" in raw_level or "caution" in raw_level:
+            level = "suspicious"
+        else:
+            level = "normal"
+        risk = {
+            "level": level,
+            "reason": str(data.get("risk_reason", data.get("reason", "Standard bill/notice evaluation."))),
+        }
+
+    # Normalize fields with safe fallbacks
+    amount = data.get("amount_due")
+    if amount is None or str(amount).lower() in ("null", "none"):
+        amount = "Not mentioned"
+    due_date = data.get("due_date")
+    if due_date is None or str(due_date).lower() in ("null", "none"):
+        due_date = "Not mentioned"
+
+    return {
+        "document_type": str(data.get("document_type") or "Document"),
+        "issuer": str(data.get("issuer") or "Unknown Issuer"),
+        "amount_due": str(amount),
+        "due_date": str(due_date),
+        "summary": str(data.get("summary") or cleaned[:300]),
+        "action_items": list(data.get("action_items") or ["Check and verify the document details."]),
+        "risk_assessment": risk,
+    }
 
 
 def _tts(text: str, target_language: str) -> str:
@@ -50,13 +133,13 @@ def _tts(text: str, target_language: str) -> str:
             return response.audios[0]
         return ""
     except Exception as exc:
-        logger.warning("Sarvam TTS convert failed: %s; trying fallback speaker", exc)
+        logger.warning("Sarvam TTS convert failed for %s (%s): %s; trying fallback speaker", lang_code, speaker, exc)
         try:
-            # Fallback to general speaker
+            # Fallback to standard Hindi speaker
             response = client.text_to_speech.convert(
                 text=truncated_text,
                 language_code="hi-IN",
-                speaker="shubh",
+                speaker="shubh_hi_ads",
                 model="bulbul:v4-flash",
             )
             if hasattr(response, "audios") and response.audios:
@@ -70,7 +153,6 @@ def _extract_text_from_file(file_bytes: bytes) -> str:
     """Extract text from an uploaded document using Sarvam Doc AI digitise."""
     client = get_sarvam_client()
     try:
-        # Create a file-like tuple for digitise API
         file_tuple = ("uploaded_doc", io.BytesIO(file_bytes), "application/octet-stream")
         job = client.doc_ai.digitise(file=file_tuple, output_format="md")
         job_id = getattr(job, "job_id", None)
@@ -127,22 +209,34 @@ def analyze_document(
     else:
         extracted_text = raw_text or ""
 
-    # 2. LLM Analysis with structured schema
+    # 2. LLM Analysis with json_object format
     try:
         llm_response = client.chat.completions(
-            model="sarvam-105b",
+            model="sarvam-105b-conversations",
             messages=[
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": f"Document text:\n\n{extracted_text}"},
+                {
+                    "role": "system",
+                    "content": (
+                        f"{SYSTEM_PROMPT}\n\n"
+                        "IMPORTANT: You MUST return a single valid JSON object with the following keys:\n"
+                        "- document_type (string)\n"
+                        "- issuer (string)\n"
+                        "- amount_due (string or 'Not mentioned')\n"
+                        "- due_date (string or 'Not mentioned')\n"
+                        "- summary (string: plain-language 2-3 sentence explanation)\n"
+                        "- action_items (array of strings)\n"
+                        "- risk_assessment (object with 'level': 'normal'|'suspicious'|'likely_scam' and 'reason': string)\n"
+                        "Return ONLY the JSON object. Do not include markdown codeblocks or conversational text."
+                    ),
+                },
+                {"role": "user", "content": f"Document text to analyze:\n\n{extracted_text}"},
             ],
-            response_format=BILL_ANALYSIS_SCHEMA,
+            response_format={"type": "json_object"},
+            max_tokens=1500,
             temperature=0.2,
         )
-        content: str = llm_response.choices[0].message.content
-        analysis: dict[str, Any] = json.loads(content)
-    except json.JSONDecodeError as exc:
-        logger.exception("Failed to parse LLM structured response: %s", exc)
-        raise RuntimeError(f"LLM returned invalid JSON: {exc}") from exc
+        raw_content = _extract_content(llm_response.choices[0])
+        analysis = _parse_analysis_json(raw_content)
     except Exception as exc:
         logger.exception("LLM completion failed: %s", exc)
         raise RuntimeError(f"LLM analysis failed: {exc}") from exc
@@ -213,14 +307,15 @@ def handle_followup(
     try:
         prompt_content = f"Previous document context:\n{context_json}\n\nUser Question:\n{user_question}"
         llm_resp = client.chat.completions(
-            model="sarvam-105b",
+            model="sarvam-105b-conversations",
             messages=[
                 {"role": "system", "content": FOLLOWUP_SYSTEM_PROMPT},
                 {"role": "user", "content": prompt_content},
             ],
+            max_tokens=800,
             temperature=0.3,
         )
-        answer = llm_resp.choices[0].message.content
+        answer = _extract_content(llm_resp.choices[0]) or "I could not generate an answer for this question."
     except Exception as exc:
         logger.exception("Follow-up LLM completion failed: %s", exc)
         raise RuntimeError(f"Follow-up LLM failed: {exc}") from exc
@@ -289,4 +384,3 @@ def handle_voice_query(
     analysis = analyze_document(raw_text=transcript, target_language=target_language)
     analysis["user_prompt"] = transcript
     return analysis
-

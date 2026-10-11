@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { UploadZone } from "@/components/upload-zone";
 import { LanguageSelector } from "@/components/language-selector";
 import { AnalysisCard } from "@/components/analysis-card";
@@ -20,6 +21,7 @@ import {
   FileCheck2,
   FileSearch,
   Volume2,
+  Bell,
 } from "lucide-react";
 
 export default function Home() {
@@ -95,6 +97,13 @@ export default function Home() {
           </div>
 
           <div className="flex items-center gap-3">
+            <Link
+              href="/reminders"
+              className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-colors shadow-2xs"
+            >
+              <Bell className="w-3.5 h-3.5" />
+              Reminders
+            </Link>
             <LanguageSelector
               value={selectedLanguage}
               onChange={setSelectedLanguage}

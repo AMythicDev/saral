@@ -3,8 +3,10 @@
 import * as React from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { AnalysisResult } from "@/lib/types";
+import { saveReminder } from "@/lib/api";
 import { RiskBadge } from "./risk-badge";
 import { AudioPlayer } from "./audio-player";
 import { VoiceRecorder } from "./voice-recorder";
@@ -16,6 +18,8 @@ import {
   ListTodo,
   AlertOctagon,
   Sparkles,
+  Bell,
+  CheckCircle2,
 } from "lucide-react";
 
 interface AnalysisCardProps {
@@ -26,6 +30,32 @@ interface AnalysisCardProps {
 export function AnalysisCard({ result, targetLanguage }: AnalysisCardProps) {
   const isScam = result.risk_assessment.level === "likely_scam";
   const isSuspicious = result.risk_assessment.level === "suspicious";
+
+  const [reminderSaved, setReminderSaved] = React.useState(Boolean(result.reminder_saved));
+  const [savingReminder, setSavingReminder] = React.useState(false);
+
+  React.useEffect(() => {
+    setReminderSaved(Boolean(result.reminder_saved));
+  }, [result]);
+
+  const handleSaveReminder = async () => {
+    setSavingReminder(true);
+    try {
+      await saveReminder({
+        document_type: result.document_type,
+        issuer: result.issuer,
+        amount_due: result.amount_due,
+        due_date: result.due_date,
+        summary: result.summary,
+        risk_level: result.risk_assessment.level,
+      });
+      setReminderSaved(true);
+    } catch (err) {
+      console.error("Failed to save reminder:", err);
+    } finally {
+      setSavingReminder(false);
+    }
+  };
 
   return (
     <Card className={`border shadow-md overflow-hidden transition-all ${
@@ -154,6 +184,27 @@ export function AnalysisCard({ result, targetLanguage }: AnalysisCardProps) {
                 </li>
               ))}
             </ul>
+          </div>
+        )}
+
+        {/* Save as Reminder */}
+        {result.risk_assessment.level === "normal" && (
+          <div className="flex items-center gap-3">
+            <Button
+              variant={reminderSaved ? "outline" : "default"}
+              size="sm"
+              onClick={handleSaveReminder}
+              disabled={savingReminder || reminderSaved}
+              className={`gap-2 ${reminderSaved ? "border-emerald-500 text-emerald-600" : ""}`}
+            >
+              {reminderSaved ? (
+                <><CheckCircle2 className="w-4 h-4" /> Reminder Saved</>
+              ) : savingReminder ? (
+                <>Saving...</>
+              ) : (
+                <><Bell className="w-4 h-4" /> Save Due Date Reminder</>
+              )}
+            </Button>
           </div>
         )}
 

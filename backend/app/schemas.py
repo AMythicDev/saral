@@ -39,6 +39,9 @@ class AnalysisResult(BaseModel):
     user_prompt: Optional[str] = Field(
         None, description="Transcribed voice prompt if initiated by voice."
     )
+    reminder_saved: Optional[bool] = Field(
+        False, description="Whether this bill was saved as a reminder."
+    )
 
 
 class FollowupResult(BaseModel):
@@ -63,3 +66,25 @@ class ErrorResponse(BaseModel):
     """Standard error envelope returned by the API."""
 
     detail: str = Field(..., description="Human-readable error message.")
+
+
+class Reminder(BaseModel):
+    """A saved bill/document reminder."""
+
+    id: int
+    document_type: str
+    issuer: str
+    amount_due: str
+    due_date: str
+    due_date_parsed: Optional[str] = None
+    summary: str
+    risk_level: str = "normal"
+    created_at: str
+    is_dismissed: bool = False
+
+
+class ReminderListResponse(BaseModel):
+    """Response containing list of reminders."""
+
+    reminders: list[Reminder]
+    count: int

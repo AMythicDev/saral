@@ -16,6 +16,7 @@ export interface AnalysisResult {
   risk_assessment: RiskAssessment;
   audio_base64: string;
   user_prompt?: string | null;
+  reminder_saved?: boolean;
 }
 
 export interface FollowupResult {
@@ -26,4 +27,22 @@ export interface FollowupResult {
 
 export interface ApiError {
   detail: string;
+}
+
+export interface Reminder {
+  id: number;
+  document_type: string;
+  issuer: string;
+  amount_due: string;
+  due_date: string;
+  due_date_parsed: string | null;
+  summary: string;
+  risk_level: string;
+  created_at: string;
+  is_dismissed: boolean;
+}
+
+export interface ReminderListResponse {
+  reminders: Reminder[];
+  count: number;
 }

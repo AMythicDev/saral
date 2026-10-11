@@ -1,4 +1,4 @@
-import { AnalysisResult, FollowupResult } from "./types";
+import { AnalysisResult, FollowupResult, Reminder, ReminderListResponse } from "./types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -130,4 +130,45 @@ export async function checkBackendHealth(): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+export async function getReminders(includeDismissed = false): Promise<ReminderListResponse> {
+  const res = await fetch(
+    `${API_BASE}/api/reminders?include_dismissed=${includeDismissed}`
+  );
+  if (!res.ok) throw new Error(`Failed to fetch reminders: ${res.status}`);
+  return res.json();
+}
+
+export async function saveReminder(data: {
+  document_type: string;
+  issuer: string;
+  amount_due: string;
+  due_date: string;
+  summary: string;
+  risk_level: string;
+}): Promise<Reminder> {
+  const formData = new FormData();
+  Object.entries(data).forEach(([key, value]) => formData.append(key, value));
+
+  const res = await fetch(`${API_BASE}/api/reminders`, {
+    method: "POST",
+    body: formData,
+  });
+  if (!res.ok) throw new Error(`Failed to save reminder: ${res.status}`);
+  return res.json();
+}
+
+export async function dismissReminder(id: number): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/reminders/${id}/dismiss`, {
+    method: "PATCH",
+  });
+  if (!res.ok) throw new Error(`Failed to dismiss reminder: ${res.status}`);
+}
+
+export async function deleteReminder(id: number): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/reminders/${id}`, {
+    method: "DELETE",
+  });
+  if (!res.ok) throw new Error(`Failed to delete reminder: ${res.status}`);
 }

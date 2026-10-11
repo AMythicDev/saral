@@ -4,25 +4,6 @@
 
 ---
 
-## 🏆 Why It Wins for a Hackathon
-
-1. **All 5 Sarvam AI Capabilities in One Cohesive Pipeline:**
-   - 👁️ **Sarvam Doc AI (Vision)**: Extracts text from uploaded invoices, electricity bills, and scanned legal notices.
-   - 🧠 **Sarvam LLM (`sarvam-105b`)**: Extracts structured metadata (amounts, dates, action items) and analyzes scam risk.
-   - 🌐 **Sarvam Translate**: Translates plain-language explanations into 12+ Indian languages (Hindi, Bengali, Tamil, Telugu, Marathi, Gujarati, etc.).
-   - 🔊 **Sarvam Bulbul (TTS)**: Reads the translated summary aloud in natural regional voices.
-   - 🎙️ **Sarvam Saaras (STT)**: Enables voice follow-up questions in regional languages.
-
-2. **Scam-Check Bonus Feature**:
-   - Evaluates urgency pressure, fake UPI handles, spoofed sender domains, and threats of arrest/disconnection.
-   - Gives an instant color-coded risk flag: **✅ Looks Legitimate**, **⚠️ Suspicious**, or **🚨 Likely Scam**.
-
-3. **Zero Complex Infrastructure**:
-   - Pure stateless pipeline. No database, no logins, no persistent storage needed.
-   - Clean architecture: **FastAPI backend** + **Next.js 16 / shadcn/ui frontend**.
-
----
-
 ## 🏗️ Architecture
 
 ```
