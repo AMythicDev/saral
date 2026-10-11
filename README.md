@@ -47,6 +47,30 @@ User (Browser)
 
 ---
 
+## Screenshots & Walkthrough
+
+### 1. Document Input & Always-On Voice Assistant
+Upload a bill photo or PDF, paste SMS text, or speak directly to the voice assistant. The regional language selector supports Hindi, Bengali, Tamil, Telugu, Marathi, and more.
+
+![Document Input & Voice Assistant](docs/images/01-input-and-voice-assistant.png)
+
+### 2. Document Analysis & Regional Audio Readout
+Structured extraction of document type, issuer, amount due, and due date alongside fraud verification ("Looks Legitimate"), plain-language regional summary, and audio narration powered by Sarvam Bulbul TTS.
+
+![Document Analysis and Regional Audio Readout](docs/images/02-document-analysis-and-tts.png)
+
+### 3. Action Items Checklist, Auto-Saved Reminder & Voice Q&A
+Actionable next steps, automatic persistence of verified payment deadlines ("Reminder Saved"), and an interactive microphone to ask spoken follow-up questions in your language via Sarvam Saaras STT.
+
+![Action Items, Reminder Saved, and Voice Q&A](docs/images/03-reminders-and-voice-qa.png)
+
+### 4. Dedicated Bill Reminders Dashboard
+Centralized dashboard at `/reminders` tracking upcoming payment deadlines with countdown badges (e.g., "4d left", "Due today", "Overdue"), urgency color-coding, and dismiss/delete controls.
+
+![Bill Reminders Dashboard](docs/images/04-bill-reminders-dashboard.png)
+
+---
+
 ## Quick Start
 
 ### 1. Prerequisites
@@ -155,6 +179,8 @@ servam-ps/
 │   │   └── components/ui/       # shadcn/ui component primitives
 │   ├── package.json
 │   └── next.config.ts
+├── docs/
+│   └── images/                  # UI walkthrough screenshots
 ├── Makefile
 └── README.md
 ```
