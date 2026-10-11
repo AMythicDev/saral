@@ -8,7 +8,7 @@ import { LoadingSkeleton } from "@/components/loading-skeleton";
 import { VoiceAssistantBar } from "@/components/voice-assistant-bar";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { DEFAULT_LANGUAGE } from "@/lib/constants";
+import { DEFAULT_DEMO_RESULT, DEFAULT_LANGUAGE } from "@/lib/constants";
 import { analyzeDocument, checkBackendHealth } from "@/lib/api";
 import { AnalysisResult } from "@/lib/types";
 import {
@@ -17,6 +17,7 @@ import {
   Zap,
   Info,
   CheckCircle2,
+  FileCheck2,
   FileSearch,
   Volume2,
 } from "lucide-react";
@@ -26,7 +27,7 @@ export default function Home() {
   const [file, setFile] = React.useState<File | null>(null);
   const [rawText, setRawText] = React.useState("");
   const [isLoading, setIsLoading] = React.useState(false);
-  const [analysisResult, setAnalysisResult] = React.useState<AnalysisResult | null>(null);
+  const [analysisResult, setAnalysisResult] = React.useState<AnalysisResult | null>(DEFAULT_DEMO_RESULT);
   const [error, setError] = React.useState<string | null>(null);
   const [backendOnline, setBackendOnline] = React.useState<boolean | null>(null);
 
@@ -254,7 +255,18 @@ export default function Home() {
 
         {/* Results */}
         {analysisResult && !isLoading && (
-          <div className="max-w-3xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
+          <div className="max-w-3xl mx-auto space-y-2 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <div className="flex items-center justify-between px-1">
+              <h3 className="text-sm font-semibold text-foreground flex items-center gap-1.5">
+                <FileCheck2 className="w-4 h-4 text-primary" />
+                Bill & Letter Explainer
+              </h3>
+              {analysisResult.issuer === "BSES Rajdhani Power Limited" && !file && !rawText && (
+                <span className="text-xs px-2.5 py-0.5 rounded-full bg-primary/10 text-primary font-medium">
+                  Sample Preview (Upload or Speak Above to Analyze Your Own)
+                </span>
+              )}
+            </div>
             <AnalysisCard
               result={analysisResult}
               targetLanguage={selectedLanguage}
