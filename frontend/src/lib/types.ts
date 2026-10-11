@@ -15,6 +15,7 @@ export interface AnalysisResult {
   action_items: string[];
   risk_assessment: RiskAssessment;
   audio_base64: string;
+  user_prompt?: string | null;
 }
 
 export interface FollowupResult {

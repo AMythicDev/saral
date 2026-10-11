@@ -9,9 +9,9 @@ from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from app.pipeline import analyze_document, handle_followup
+from app.pipeline import analyze_document, handle_followup, handle_voice_query, transcribe_audio
 from app.sarvam_client import is_api_configured
-from app.schemas import AnalysisResult, ErrorResponse, FollowupResult
+from app.schemas import AnalysisResult, ErrorResponse, FollowupResult, TranscribeResult
 
 # ---------------------------------------------------------------------------
 # Logging
@@ -206,3 +206,72 @@ async def followup(
         ) from exc
 
     return JSONResponse(content=result)
+
+
+@app.post(
+    "/api/transcribe",
+    response_model=TranscribeResult,
+    responses={
+        400: {"model": ErrorResponse},
+        500: {"model": ErrorResponse},
+        503: {"model": ErrorResponse},
+    },
+    summary="Transcribe audio to text using Sarvam Saaras STT",
+)
+async def transcribe(
+    audio: UploadFile = File(...),
+    mode: str = Form("transcribe"),
+) -> JSONResponse:
+    """Accept voice recording and return transcribed text in the spoken language."""
+    audio_bytes = await audio.read()
+    if not audio_bytes:
+        raise HTTPException(status_code=400, detail="Audio file is empty.")
+
+    try:
+        text = transcribe_audio(audio_bytes=audio_bytes, mode=mode)
+        return JSONResponse(content={"transcript": text})
+    except RuntimeError as exc:
+        error_msg = str(exc)
+        if "not configured" in error_msg.lower() or "transcription failed" in error_msg.lower():
+            raise HTTPException(status_code=503, detail=error_msg) from exc
+        raise HTTPException(status_code=500, detail=error_msg) from exc
+    except Exception as exc:
+        logger.exception("Unexpected error in /api/transcribe")
+        raise HTTPException(status_code=500, detail="Internal server error") from exc
+
+
+@app.post(
+    "/api/voice-query",
+    responses={
+        400: {"model": ErrorResponse},
+        500: {"model": ErrorResponse},
+        503: {"model": ErrorResponse},
+    },
+    summary="Speak at any time: either ask questions about a bill or describe a situation",
+)
+async def voice_query(
+    audio: UploadFile = File(...),
+    context: Optional[str] = Form(None),
+    target_language: str = Form("hi-IN"),
+) -> JSONResponse:
+    """Accept spoken query and return either document analysis or conversational answer with audio."""
+    audio_bytes = await audio.read()
+    if not audio_bytes:
+        raise HTTPException(status_code=400, detail="Audio file is empty.")
+
+    try:
+        result = handle_voice_query(
+            audio_bytes=audio_bytes,
+            context_json=context,
+            target_language=target_language,
+        )
+        return JSONResponse(content=result)
+    except RuntimeError as exc:
+        error_msg = str(exc)
+        if "not configured" in error_msg.lower() or "transcription failed" in error_msg.lower():
+            raise HTTPException(status_code=503, detail=error_msg) from exc
+        raise HTTPException(status_code=500, detail=error_msg) from exc
+    except Exception as exc:
+        logger.exception("Unexpected error in /api/voice-query")
+        raise HTTPException(status_code=500, detail="Internal server error") from exc
+

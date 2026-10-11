@@ -5,6 +5,7 @@ import { UploadZone } from "@/components/upload-zone";
 import { LanguageSelector } from "@/components/language-selector";
 import { AnalysisCard } from "@/components/analysis-card";
 import { LoadingSkeleton } from "@/components/loading-skeleton";
+import { VoiceAssistantBar } from "@/components/voice-assistant-bar";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { DEFAULT_LANGUAGE } from "@/lib/constants";
@@ -131,6 +132,16 @@ export default function Home() {
             </AlertDescription>
           </Alert>
         )}
+
+        {/* Always-Available Voice Chat Bar */}
+        <div className="max-w-3xl mx-auto">
+          <VoiceAssistantBar
+            activeContext={analysisResult}
+            targetLanguage={selectedLanguage}
+            onAnalysisReceived={(res) => setAnalysisResult(res)}
+            disabled={isLoading}
+          />
+        </div>
 
         {/* Input Card */}
         <div className="max-w-3xl mx-auto space-y-4">

@@ -57,6 +57,14 @@ export function AnalysisCard({ result, targetLanguage }: AnalysisCardProps) {
       </CardHeader>
 
       <CardContent className="p-4 sm:p-6 space-y-6">
+        {/* If initiated via voice query */}
+        {result.user_prompt && (
+          <div className="p-3 rounded-xl bg-primary/10 border border-primary/20 text-xs sm:text-sm text-foreground flex items-start sm:items-center gap-2.5">
+            <span className="font-bold text-primary shrink-0">🎙️ Spoken Query:</span>
+            <span className="italic">"{result.user_prompt}"</span>
+          </div>
+        )}
+
         {/* Scam Warning Alert Box (for suspicious or likely_scam) */}
         {(isScam || isSuspicious) && (
           <Alert variant={isScam ? "destructive" : "default"} className={`${

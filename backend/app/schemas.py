@@ -36,6 +36,9 @@ class AnalysisResult(BaseModel):
     audio_base64: str = Field(
         ..., description="Base64-encoded audio of the summary spoken aloud."
     )
+    user_prompt: Optional[str] = Field(
+        None, description="Transcribed voice prompt if initiated by voice."
+    )
 
 
 class FollowupResult(BaseModel):
@@ -48,6 +51,12 @@ class FollowupResult(BaseModel):
     audio_base64: str = Field(
         ..., description="Base64-encoded audio of the answer spoken aloud."
     )
+
+
+class TranscribeResult(BaseModel):
+    """Result of speech-to-text transcription."""
+
+    transcript: str = Field(..., description="Transcribed text from speech.")
 
 
 class ErrorResponse(BaseModel):

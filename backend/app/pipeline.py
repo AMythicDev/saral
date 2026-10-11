@@ -254,3 +254,39 @@ def handle_followup(
         "translated_answer": translated_answer,
         "audio_base64": audio_b64,
     }
+
+
+def transcribe_audio(
+    audio_bytes: bytes,
+    mode: str = "transcribe",
+) -> str:
+    """Transcribe raw audio bytes using Sarvam Saaras STT."""
+    client = get_sarvam_client()
+    try:
+        audio_file = ("user_voice.wav", io.BytesIO(audio_bytes), "audio/wav")
+        stt_resp = client.speech_to_text.transcribe(
+            file=audio_file,
+            model="saaras:v4",
+            mode=mode,
+        )
+        return getattr(stt_resp, "transcript", str(stt_resp))
+    except Exception as exc:
+        logger.exception("STT transcription failed: %s", exc)
+        raise RuntimeError(f"Transcription failed: {exc}") from exc
+
+
+def handle_voice_query(
+    audio_bytes: bytes,
+    context_json: str | None = None,
+    target_language: str = "hi-IN",
+) -> dict[str, Any]:
+    """Transcribe user voice and either answer in context or perform full analysis."""
+    if context_json and context_json.strip():
+        return handle_followup(audio_bytes, context_json, target_language)
+
+    # Direct voice query with no prior document context
+    transcript = transcribe_audio(audio_bytes, mode="translate")
+    analysis = analyze_document(raw_text=transcript, target_language=target_language)
+    analysis["user_prompt"] = transcript
+    return analysis
+
