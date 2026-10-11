@@ -145,6 +145,47 @@ export default function Home() {
 
         {/* Input Card */}
         <div className="max-w-3xl mx-auto space-y-4">
+          {/* Prominent Language Bar */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 p-3 rounded-xl bg-card border shadow-xs">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-semibold text-foreground whitespace-nowrap">
+                Select Language for Voice & Text:
+              </span>
+            </div>
+
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {[
+                { code: "hi-IN", label: "हिन्दी" },
+                { code: "bn-IN", label: "বাংলা" },
+                { code: "ta-IN", label: "தமிழ்" },
+                { code: "te-IN", label: "తెలుగు" },
+                { code: "mr-IN", label: "मराठी" },
+                { code: "en-IN", label: "English" },
+              ].map((item) => (
+                <button
+                  key={item.code}
+                  type="button"
+                  onClick={() => setSelectedLanguage(item.code)}
+                  className={`text-xs px-2.5 py-1 rounded-lg font-medium transition-all ${
+                    selectedLanguage === item.code
+                      ? "bg-primary text-primary-foreground shadow-xs"
+                      : "bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground"
+                  }`}
+                >
+                  {item.label}
+                </button>
+              ))}
+
+              <div className="ml-1">
+                <LanguageSelector
+                  value={selectedLanguage}
+                  onChange={setSelectedLanguage}
+                  disabled={isLoading}
+                />
+              </div>
+            </div>
+          </div>
+
           <UploadZone
             file={file}
             onFileSelect={setFile}
